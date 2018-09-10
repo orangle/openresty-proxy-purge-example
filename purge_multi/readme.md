@@ -3,6 +3,8 @@
 * proxy_cache_key 中 `$scheme$proxy_host` 要设置为 ""
 * 操作系统要是 linux
 
+主要原理就是查找nginx cache文件的header中的 `KEY: /test/upload.txt` 信息，通过这个信息来找到文件并删除。应该比较影响性能。
+
 ### 准备
 
 启动
@@ -29,8 +31,8 @@ curl 127.0.0.1:10009/test/upload.txt -i
 
 查看cache目录
 ```
-▶ tree /tmp/cache1
-/tmp/cache1
+$ tree /tmp/cache1/
+/tmp/cache1/
 ├── 1
 │   └── 9b
 │       └── 1a93233708000b0df0fbd74ea1e199b1
@@ -40,6 +42,8 @@ curl 127.0.0.1:10009/test/upload.txt -i
 └── e
     └── 5b
         └── 22f6cbe1f23cee38cfa17af0881575be
+
+6 directories, 3 files
 ```
 
 
@@ -48,22 +52,90 @@ curl 127.0.0.1:10009/test/upload.txt -i
 ### purge 目录
 
 ```
-▶ curl -X PURGE '127.0.0.1:10009/test/.*' -i
+$ curl -X PURGE '127.0.0.1:10009/test/.*' -i
 HTTP/1.1 200 OK
-...
-X-Purged-Count: 4
+Server: openresty/1.11.2.3
+Date: Mon, 10 Sep 2018 14:15:57 GMT
+Content-Type: text/plain; charset=utf-8
+Transfer-Encoding: chunked
+Connection: keep-alive
+X-Purged-Count: 3
 
 OK
+
+$ tree /tmp/cache1/
+/tmp/cache1/
+├── 1
+│   └── 9b
+├── 7
+│   └── 92
+└── e
+    └── 5b
 ```
 
 
 ### purge 文件匹配
 
 ```
-curl -X PURGE '127.0.0.1:10009/test/upload.*' -i
+$ curl -X PURGE '127.0.0.1:10009/test/upload.*' -i
+HTTP/1.1 200 OK
+Server: openresty/1.11.2.3
+Date: Mon, 10 Sep 2018 14:16:59 GMT
+Content-Type: text/plain; charset=utf-8
+Transfer-Encoding: chunked
+Connection: keep-alive
+X-Purged-Count: 2
+
+OK
+
+$ tree /tmp/cache1/
+/tmp/cache1/
+├── 1
+│   └── 9b
+├── 7
+│   └── 92
+└── e
+    └── 5b
+        └── 22f6cbe1f23cee38cfa17af0881575be
 ```
 
+按照文件格式
 
 ```
-curl -X PURGE '127.0.0.1:10009/test/.*txt' -i
+$ curl -X PURGE '127.0.0.1:10009/test/.*txt' -i
+HTTP/1.1 200 OK
+Server: openresty/1.11.2.3
+Date: Mon, 10 Sep 2018 14:17:47 GMT
+Content-Type: text/plain; charset=utf-8
+Transfer-Encoding: chunked
+Connection: keep-alive
+X-Purged-Count: 2
+
+OK
+
+$ tree /tmp/cache1/
+/tmp/cache1/
+├── 1
+│   └── 9b
+│       └── 1a93233708000b0df0fbd74ea1e199b1
+├── 7
+│   └── 92
+└── e
+    └── 5b
+
+$ cat /tmp/cache1/1/9b/1a93233708000b0df0fbd74ea1e199b1
+X[y[}[7ìý¾«
+                 "5b967995-b"
+KEY: http://127.0.0.1:10010/test/upload.json
+HTTP/1.1 200 OK
+Server: openresty/1.11.2.3
+Date: Mon, 10 Sep 2018 14:17:36 GMT
+Content-Type: text/plain
+Content-Length: 11
+Last-Modified: Mon, 10 Sep 2018 14:03:01 GMT
+Connection: close
+ETag: "5b967995-b"
+Accept-Ranges: bytes
+
+upload.json
 ```
